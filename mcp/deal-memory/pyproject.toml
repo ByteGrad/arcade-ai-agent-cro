@@ -1,0 +1,19 @@
+[project]
+name = "deal-memory"
+version = "0.1.0"
+description = "CRO Autopilot memory MCP server"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "arcade-mcp-server>=1.9.1",
+]
+
+[project.scripts]
+deal-memory = "deal_memory.server:main"
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

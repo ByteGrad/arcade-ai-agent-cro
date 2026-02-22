@@ -1,0 +1,7 @@
+DealId,Account,OwnerName,OwnerEmail,Stage,Amount,CloseDate,LastTouchDate,NextStep,RiskScore,LastAutopilotRun,PrimaryContactEmail,PrimaryObjection
+D-1001,Northwind Logistics,Ava Reed,ava.reed@example.com,Proposal,120000,2026-03-10,2026-02-10,Schedule pricing review,,,
+D-1002,Blue Ocean Health,Mason Patel,mason.patel@example.com,Negotiation,86000,2026-03-02,2026-02-05,Share security addendum,,,
+D-1003,Redwood Energy,Sophia Kim,sophia.kim@example.com,Discovery,54000,2026-03-24,2026-02-18,Confirm technical champion,,,
+D-1004,Kepler Foods,Liam Chen,liam.chen@example.com,Commit,210000,2026-02-28,2026-02-02,Finalize legal redlines,,,
+D-1005,Atlas Freight,Noah Rivera,noah.rivera@example.com,Proposal,98000,2026-03-18,2026-02-12,Book exec sponsor call,,,
+D-1006,Harbor Retail,Emma Diaz,emma.diaz@example.com,Negotiation,143000,2026-03-05,2026-02-01,Confirm rollout timeline,,,
