@@ -33,8 +33,10 @@ const AUTO_RUN_ALLOWLIST = new Set([
 ]);
 
 const CRO_MAX_DEALS = 3;
-const MAX_TOOL_OUTPUT_CHARS = 2400;
-const MAX_TOOL_COLLECTION_ITEMS = 25;
+const DEFAULT_SHEET_MAX_ROWS = 50;
+const DEFAULT_SHEET_MAX_COLS = 12;
+const MAX_TOOL_OUTPUT_CHARS = 8000;
+const MAX_TOOL_COLLECTION_ITEMS = 50;
 const SLACK_ALLOWED_TOOLS = new Set([
   "Slack_SendMessage",
   "Slack_SendMessageToChannel",
@@ -112,6 +114,19 @@ function sanitizeStringArray(value: unknown): string[] | null {
     .filter((item) => item.length > 0);
 
   return normalized.length > 0 ? normalized : null;
+}
+
+function sanitizePositiveInteger(value: unknown): number | null {
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) {
+    return value;
+  }
+
+  if (typeof value === "string" && /^\d+$/.test(value.trim())) {
+    const parsed = Number.parseInt(value, 10);
+    return parsed > 0 ? parsed : null;
+  }
+
+  return null;
 }
 
 function columnLettersToNumber(letters: string): number {
@@ -343,6 +358,45 @@ function sanitizeUpdateCellsInput(
   return cleaned;
 }
 
+function sanitizeGetSpreadsheetInput(
+  input: Record<string, unknown>
+): Record<string, unknown> {
+  const cleaned = { ...input };
+
+  const sheetPosition = sanitizePositiveInteger(cleaned.sheet_position);
+  if (sheetPosition) {
+    cleaned.sheet_position = sheetPosition;
+  } else {
+    delete cleaned.sheet_position;
+  }
+
+  const startRow = sanitizePositiveInteger(cleaned.start_row);
+  if (startRow) {
+    cleaned.start_row = startRow;
+  } else {
+    delete cleaned.start_row;
+  }
+
+  if (typeof cleaned.start_col === "number" && Number.isInteger(cleaned.start_col)) {
+    cleaned.start_col = String(cleaned.start_col);
+  } else if (typeof cleaned.start_col === "string") {
+    const trimmed = cleaned.start_col.trim();
+    if (trimmed.length > 0) {
+      cleaned.start_col = trimmed;
+    } else {
+      delete cleaned.start_col;
+    }
+  }
+
+  const maxRows = sanitizePositiveInteger(cleaned.max_rows);
+  cleaned.max_rows = maxRows ?? DEFAULT_SHEET_MAX_ROWS;
+
+  const maxCols = sanitizePositiveInteger(cleaned.max_cols);
+  cleaned.max_cols = maxCols ?? DEFAULT_SHEET_MAX_COLS;
+
+  return cleaned;
+}
+
 function sanitizeSearchSpreadsheetsInput(
   input: Record<string, unknown>
 ): Record<string, unknown> {
@@ -399,6 +453,10 @@ function sanitizeToolInput(
     return sanitizeSearchSpreadsheetsInput(cleaned);
   }
 
+  if (toolName === "GoogleSheets_GetSpreadsheet") {
+    return sanitizeGetSpreadsheetInput(cleaned);
+  }
+
   if (toolName === "GoogleSheets_UpdateCells") {
     return sanitizeUpdateCellsInput(cleaned);
   }
@@ -406,29 +464,109 @@ function sanitizeToolInput(
   return cleaned;
 }
 
-function truncateToolOutput(value: unknown, depth = 0): unknown {
+function isToolAuthorizationResponse(
+  value: unknown
+): value is { authorization_required: true } {
+  return isRecord(value) && value.authorization_required === true;
+}
+
+function extractToolOutputValue(value: unknown): unknown {
+  if (isToolAuthorizationResponse(value)) {
+    return value;
+  }
+
+  if (isRecord(value) && isRecord(value.output) && "value" in value.output) {
+    return value.output.value;
+  }
+
+  return value;
+}
+
+function simplifyGoogleSheetsValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => simplifyGoogleSheetsValue(item));
+  }
+
+  if (isRecord(value)) {
+    if ("formattedValue" in value || "userEnteredValue" in value) {
+      const formattedValue = value.formattedValue;
+      if (
+        typeof formattedValue === "string" ||
+        typeof formattedValue === "number" ||
+        typeof formattedValue === "boolean"
+      ) {
+        return formattedValue;
+      }
+
+      const userEnteredValue = value.userEnteredValue;
+      if (
+        typeof userEnteredValue === "string" ||
+        typeof userEnteredValue === "number" ||
+        typeof userEnteredValue === "boolean"
+      ) {
+        return userEnteredValue;
+      }
+
+      return "";
+    }
+
+    const simplified: Record<string, unknown> = {};
+
+    for (const [key, nestedValue] of Object.entries(value)) {
+      simplified[key] = simplifyGoogleSheetsValue(nestedValue);
+    }
+
+    return simplified;
+  }
+
+  return value;
+}
+
+function normalizeToolOutput(toolName: string, value: unknown): unknown {
+  const extracted = extractToolOutputValue(value);
+
+  if (toolName === "GoogleSheets_GetSpreadsheet") {
+    return simplifyGoogleSheetsValue(extracted);
+  }
+
+  return extracted;
+}
+
+function estimateSerializedLength(value: unknown): number | null {
+  try {
+    return JSON.stringify(value).length;
+  } catch {
+    return null;
+  }
+}
+
+function truncateToolOutputRecursively(value: unknown, depth = 0): unknown {
   if (typeof value === "string") {
     if (value.length <= MAX_TOOL_OUTPUT_CHARS) {
       return value;
     }
 
-    return `${value.slice(0, MAX_TOOL_OUTPUT_CHARS)}... [truncated ${value.length - MAX_TOOL_OUTPUT_CHARS} chars]`;
+    return `${value.slice(0, MAX_TOOL_OUTPUT_CHARS)}...`;
   }
 
   if (Array.isArray(value)) {
     const items = value
       .slice(0, MAX_TOOL_COLLECTION_ITEMS)
-      .map((item) => truncateToolOutput(item, depth + 1));
+      .map((item) => truncateToolOutputRecursively(item, depth + 1));
 
     if (value.length > MAX_TOOL_COLLECTION_ITEMS) {
-      items.push(`[truncated ${value.length - MAX_TOOL_COLLECTION_ITEMS} items]`);
+      items.push({
+        __truncated_items: value.length - MAX_TOOL_COLLECTION_ITEMS,
+      });
     }
 
     return items;
   }
 
   if (depth >= 6) {
-    return "[truncated nested object]";
+    return {
+      __truncated_nested_object: true,
+    };
   }
 
   if (value && typeof value === "object") {
@@ -438,7 +576,7 @@ function truncateToolOutput(value: unknown, depth = 0): unknown {
     const truncatedObject: Record<string, unknown> = {};
 
     for (const [key, nestedValue] of limitedEntries) {
-      truncatedObject[key] = truncateToolOutput(nestedValue, depth + 1);
+      truncatedObject[key] = truncateToolOutputRecursively(nestedValue, depth + 1);
     }
 
     if (entries.length > MAX_TOOL_COLLECTION_ITEMS) {
@@ -449,6 +587,16 @@ function truncateToolOutput(value: unknown, depth = 0): unknown {
   }
 
   return value;
+}
+
+function truncateToolOutput(value: unknown): unknown {
+  const serializedLength = estimateSerializedLength(value);
+
+  if (serializedLength !== null && serializedLength <= MAX_TOOL_OUTPUT_CHARS) {
+    return value;
+  }
+
+  return truncateToolOutputRecursively(value);
 }
 
 function toVercelTools(arcadeTools: Record<string, unknown>): ToolSet {
@@ -463,7 +611,8 @@ function toVercelTools(arcadeTools: Record<string, unknown>): ToolSet {
       execute: async (input: Record<string, unknown>) => {
         const cleanedInput = sanitizeToolInput(name, input);
         const output = await t.execute(cleanedInput);
-        return truncateToolOutput(output);
+        const normalizedOutput = normalizeToolOutput(name, output);
+        return truncateToolOutput(normalizedOutput);
       },
     };
   }
@@ -506,9 +655,11 @@ function buildSystemPrompt(toolNames: string[]) {
 - ${docsInstruction}
 - Keep Slack writes deterministic: use one destination style (channel or DM-by-email) for the whole run.
 - If the user asks to list sheets, call GoogleSheets_SearchSpreadsheets first with a broad query (for example limit 50 and order_by modifiedTime desc) before asking follow-up questions.
+- When reading Google Sheets, always set max_rows and max_cols on GoogleSheets_GetSpreadsheet. Start with a compact preview (for example max_rows 25-50 and max_cols 8-12), then make additional targeted reads if needed.
 - For GoogleSheets_SearchSpreadsheets, do not set include_organization_domain_spreadsheets unless the user explicitly asks for it and confirms they are an org admin.
 - For GoogleSheets_UpdateCells, data must be a JSON string row map like {"2":{"A":"value"}} where row keys are integer row numbers and column keys are letters. Do not use range/values as the final write format.
 - Never claim a tool failed unless a tool in this run returned an error. If it failed, include the exact tool name and error message.
+- Never mention internal truncation, context windows, or token limits to the user. If you need a narrower sheet slice, fetch a smaller range or ask the user which tab, columns, or rows matter.
 - If sheet search returns no results, explain that Drive access may be limited and call GoogleSheets_GenerateGoogleFilePickerUrl so the user can grant access.`;
 }
 
