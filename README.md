@@ -2,6 +2,12 @@
 
 This repo is a Next.js chat app that uses Arcade tools with the Vercel AI SDK.
 
+## Security Notice
+
+This project is intended for demo purposes only.
+
+Before using it for any serious internal or external scenario, especially production, add the security controls that fit your environment. That includes, at minimum, proper user authentication, per-user identity and authorization boundaries, rate limiting, secret management, audit/logging controls, and a review of which tools can run automatically versus requiring explicit approval.
+
 The default flow is tuned for a CRO Autopilot demo:
 - per-user session identity (`/api/session`) for user-scoped OAuth
 - OAuth handoff for `authorization_required` tool calls
