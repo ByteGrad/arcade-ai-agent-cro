@@ -9,11 +9,26 @@ This project is intended for demo purposes only.
 Before using it for any serious internal or external scenario, especially production, add the security controls that fit your environment. That includes, at minimum, proper user authentication, per-user identity and authorization boundaries, rate limiting, secret management, audit/logging controls, and a review of which tools can run automatically versus requiring explicit approval.
 
 The default flow is tuned for a CRO Autopilot demo:
+
 - per-user session identity (`/api/session`) for user-scoped OAuth
 - OAuth handoff for `authorization_required` tool calls
 - approval gating for write tools
 - tool trace visibility in chat
 - optional MCP memory tools via `@ai-sdk/mcp`
+
+## Disclaimer
+
+This repository is provided strictly as an oversimplified demo and starting point for building with Arcade and the Vercel AI SDK. It is not intended for production use, and should not be used as-is for any internal or customer-facing scenario without significant review and modification.
+
+It is provided "as is" and "as available", without warranties or representations of any kind, whether express, implied, or statutory, including any implied warranties of merchantability, fitness for a particular purpose, title, non-infringement, security, availability, accuracy, or suitability for production use.
+
+No rights, guarantees, service levels, support commitments, security assurances, compliance assurances, or other obligations may be derived from this repository, its contents, or any related demo, video, or documentation.
+
+You are solely responsible for reviewing, modifying, securing, testing, and validating this code before any internal use, customer-facing use, regulated use, or production deployment. That includes responsibility for access control, data protection, privacy disclosures, retention policies, audit logging, approval controls, incident response, vendor review, and compliance with applicable law, regulation, contract, and internal policy.
+
+This repository does not constitute legal, security, privacy, compliance, or other professional advice. If you need those assurances, obtain them from qualified counsel and security reviewers for your specific environment and use case.
+
+By using, copying, deploying, or referencing this repository, you accept that any use is at your own risk.
 
 ## Setup
 
@@ -34,13 +49,8 @@ Optional value:
 
 ```env
 DEAL_MEMORY_MCP_URL=http://127.0.0.1:9400/mcp
+DEAL_MEMORY_DATABASE_URL=postgresql://...
 ```
-
-Notes:
-- Gmail defaults are drafts-first (`Gmail_WriteDraftEmail`), not send.
-- Slack toolkit loading is filtered to a small built-in allowlist to keep behavior deterministic.
-- If Google Docs tools are unavailable in your Arcade environment, remove the docs tools directly in `app/api/chat/route.ts`.
-- If Docs tools are unavailable at runtime, the agent falls back to returning a markdown deal plan in chat and Slack.
 
 ## Run
 
@@ -57,32 +67,3 @@ npm run dev:memory
 ```
 
 Open `http://localhost:3000`.
-
-## Demo Assets
-
-- `docs/demo-runbook.md`: deterministic demo script and receipt checklist
-- `seed/crm-template.csv`: sample CRM sheet template
-- `seed/deal-plan-template.md`: optional deal-plan markdown template
-
-## Memory Server
-
-- `mcp/deal-memory/src/deal_memory/server.py`
-- `mcp/deal-memory/pyproject.toml`
-
-The server is built with `arcade-mcp-server` and exposes two tools:
-- `upsert_deal_note`
-- `get_deal_context`
-
-## Key App Files
-
-- `app/page.tsx`: chat UI, OAuth handoff, approval UI, tool trace
-- `app/api/session/route.ts`: sets/reads `arcade_user_id` cookie
-- `app/api/chat/route.ts`: tool loading, approvals, MCP memory integration
-- `app/api/auth/status/route.ts`: polls Arcade auth completion status
-
-## Validation
-
-```bash
-npm run lint
-npm run build
-```

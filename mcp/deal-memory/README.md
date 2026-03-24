@@ -8,6 +8,11 @@ Minimal `arcade-mcp` server for CRO Autopilot memory.
 
 ## Run (HTTP)
 
+The server requires `DEAL_MEMORY_DATABASE_URL` and uses only a
+Postgres-compatible database such as Supabase. It creates the `deal_notes`
+table and indexes automatically on startup. SQLite is not used by the active
+server implementation.
+
 ```bash
 uv run src/deal_memory/server.py http --host 127.0.0.1 --port 9400
 ```
